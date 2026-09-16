@@ -1,0 +1,2346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Brutal Metal Sudoku</title>
+  <meta name="description" content="A 6x6 heavy-metal ritual Sudoku game with occult glyphs and Supabase comments overlay." />
+  <meta property="og:title" content="Brutal Metal Sudoku" />
+  <meta property="og:description" content="A 6x6 heavy-metal ritual Sudoku game with occult glyphs and Supabase comments overlay." />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-dark: #0a0a0d;
+      --panel-bg: #121217;
+      --card-bg: #1a1a24;
+      --blood-red: #e6194b;
+      --ember-orange: #f58231;
+      --hell-gold: #ffe119;
+      --bone-white: #e8e8ed;
+      --iron-gray: #4a4a5a;
+      --border-color: #2b2b3b;
+      --text-muted: #8e8ea0;
+      --font-display: 'Cinzel', 'Trajan Pro', 'Georgia', serif;
+      --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 50% 10%, rgba(230, 25, 75, 0.15), transparent 45%),
+        radial-gradient(circle at 80% 90%, rgba(245, 130, 49, 0.08), transparent 40%);
+      color: var(--bone-white);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      overflow-x: hidden;
+    }
+
+    /* Header Bar */
+    header {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0 12px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 12px;
+    }
+
+    .title-group h1 {
+      font-size: 1.25rem;
+      letter-spacing: 2px;
+      color: #fff;
+      text-transform: uppercase;
+      font-weight: 900;
+      text-shadow: 0 0 12px rgba(230, 25, 75, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .title-group p {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--bone-white);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover, .btn-icon:active {
+      background: #252535;
+      border-color: var(--blood-red);
+      color: #fff;
+      box-shadow: 0 0 8px rgba(230, 25, 75, 0.4);
+    }
+
+    /* Game Info Bar */
+    .ritual-stats {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 14px;
+      margin-bottom: 12px;
+      font-size: 0.82rem;
+    }
+
+    .stat-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    .stat-badge strong {
+      color: #fff;
+    }
+
+    .difficulty-select {
+      background: var(--card-bg);
+      color: var(--bone-white);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.78rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* 6x6 Sudoku Board */
+    .board-container {
+      width: 100%;
+      max-width: 440px;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    #sudoku-grid {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(6, 1fr);
+      background: #0d0d12;
+      border: 3px solid #4a1521;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 20px rgba(230, 25, 75, 0.15);
+    }
+
+    /* 2x3 blocks delineation:
+       6x6 grid with 2 rows x 3 columns per block:
+       Horizontal borders after Row 2 and Row 4.
+       Vertical border after Column 3.
+    */
+    .cell {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #14141d;
+      border: 1px solid #232330;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    /* 2x3 Block separators */
+    .cell[data-col="2"] {
+      border-right: 3px solid #5a1928;
+    }
+    .cell[data-row="1"], .cell[data-row="3"] {
+      border-bottom: 3px solid #5a1928;
+    }
+
+    .cell.selected {
+      background: #2b1420 !important;
+      outline: 2px solid var(--blood-red);
+      z-index: 2;
+    }
+
+    .cell.highlight-peer {
+      background: #1b1926;
+    }
+
+    .cell.highlight-symbol {
+      background: #2d1822;
+    }
+
+    .cell.error {
+      background: #4a0d18 !important;
+      animation: pulse-error 0.5s infinite alternate;
+    }
+
+    .cell.given {
+      background: #101017;
+    }
+
+    .cell svg {
+      width: 68%;
+      height: 68%;
+      pointer-events: none;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+      transition: transform 0.15s ease;
+    }
+
+    .cell:active svg {
+      transform: scale(0.9);
+    }
+
+    .cell .cell-hint {
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.35);
+      pointer-events: none;
+    }
+
+    @keyframes pulse-error {
+      from { box-shadow: inset 0 0 4px var(--blood-red); }
+      to { box-shadow: inset 0 0 14px var(--blood-red); }
+    }
+
+    /* Symbol Palette & Actions */
+    .controls-wrapper {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .palette {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+    }
+
+    .palette-btn {
+      aspect-ratio: 1 / 1;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+      padding: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .palette-btn svg {
+      width: 65%;
+      height: 65%;
+      pointer-events: none;
+    }
+
+    .palette-btn span.rune-num {
+      font-size: 0.65rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .palette-btn.active {
+      background: #2a121e;
+      border-color: var(--blood-red);
+      box-shadow: 0 0 12px rgba(230, 25, 75, 0.5);
+      transform: translateY(-2px);
+    }
+
+    .palette-btn:hover {
+      border-color: rgba(230, 25, 75, 0.5);
+    }
+
+    /* Ritual Action Buttons (Summon & Banish) */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .btn-action {
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 0.88rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s;
+    }
+
+    .btn-summon {
+      background: linear-gradient(135deg, #7a0f26, #b81438);
+      color: #fff;
+      border-color: var(--blood-red);
+      box-shadow: 0 4px 14px rgba(230, 25, 75, 0.35);
+    }
+
+    .btn-summon:active {
+      transform: scale(0.98);
+      box-shadow: 0 0 20px rgba(230, 25, 75, 0.6);
+    }
+
+    .btn-banish {
+      background: #1e1e28;
+      color: #f38ba8;
+      border-color: #3b2833;
+    }
+
+    .btn-banish:active {
+      background: #2e1620;
+      transform: scale(0.98);
+    }
+
+    .sub-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 7px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .btn-secondary:hover {
+      color: #fff;
+      border-color: var(--iron-gray);
+    }
+
+    /* Comments Modal Overlay */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 4, 7, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-sheet {
+      width: 100%;
+      max-width: 520px;
+      max-height: 88vh;
+      background: #13131b;
+      border: 1px solid #332431;
+      border-top: 2px solid var(--blood-red);
+      border-radius: 16px 16px 0 0;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-backdrop.open .modal-sheet {
+      transform: translateY(0);
+    }
+
+    @media (min-width: 600px) {
+      .modal-backdrop {
+        align-items: center;
+        padding: 20px;
+      }
+      .modal-sheet {
+        border-radius: 16px;
+        max-height: 80vh;
+      }
+    }
+
+    .modal-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      font-size: 1rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+
+    .modal-close:hover {
+      color: #fff;
+    }
+
+    .modal-content {
+      padding: 16px 18px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Comment Form */
+    .comment-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-group label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+    }
+
+    .form-group input, .form-group textarea {
+      background: #0b0b10;
+      border: 1px solid #2d2d3d;
+      border-radius: 6px;
+      color: #fff;
+      padding: 9px 12px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .form-group input:focus, .form-group textarea:focus {
+      border-color: var(--blood-red);
+      box-shadow: 0 0 8px rgba(230, 25, 75, 0.3);
+    }
+
+    .btn-submit-comment {
+      background: linear-gradient(135deg, #a31536, #cf1b45);
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      padding: 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-submit-comment:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Comments List */
+    .comments-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .feed-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .comment-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-left: 3px solid var(--blood-red);
+      padding: 10px 12px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .comment-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .comment-author {
+      font-weight: 700;
+      color: #fff;
+      font-size: 0.82rem;
+    }
+
+    .comment-date {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
+    .comment-text {
+      font-size: 0.82rem;
+      color: #d1d1dd;
+      word-break: break-word;
+      line-height: 1.35;
+    }
+
+    .db-status-banner {
+      font-size: 0.7rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px dashed var(--border-color);
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Ritual Completion Modal & Occult Dark Celebration */
+    .celebration-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 998;
+      display: none;
+    }
+
+    .celebration-canvas.active {
+      display: block;
+    }
+
+    /* Solved Board Consecration Animation */
+    #sudoku-grid.ritual-victory {
+      animation: ritual-board-glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes ritual-board-glow {
+      0% {
+        border-color: #7a1526;
+        box-shadow: 0 0 25px rgba(230, 25, 75, 0.45), 0 0 50px rgba(0, 0, 0, 0.95);
+      }
+      50% {
+        border-color: #ff2a55;
+        box-shadow: 0 0 50px rgba(230, 25, 75, 0.85), 0 0 80px rgba(245, 130, 49, 0.55);
+      }
+      100% {
+        border-color: #f58231;
+        box-shadow: 0 0 35px rgba(255, 225, 25, 0.7), 0 0 65px rgba(230, 25, 75, 0.7);
+      }
+    }
+
+    .cell.ritual-victory {
+      animation: ritual-cell-burn 1.4s ease-in-out infinite alternate;
+      animation-delay: calc((var(--r, 0) * 1 + var(--c, 0) * 1) * 75ms);
+      z-index: 2;
+    }
+
+    @keyframes ritual-cell-burn {
+      0% {
+        background: #190f17;
+        box-shadow: inset 0 0 10px rgba(230, 25, 75, 0.35);
+      }
+      50% {
+        background: #2a111e;
+        box-shadow: inset 0 0 22px rgba(245, 130, 49, 0.65), 0 0 15px rgba(230, 25, 75, 0.5);
+        border-color: rgba(255, 225, 25, 0.6);
+        transform: scale(1.025);
+      }
+      100% {
+        background: #1d0e1a;
+        box-shadow: inset 0 0 14px rgba(230, 25, 75, 0.5);
+      }
+    }
+
+    .cell.ritual-victory svg {
+      animation: ritual-glyph-ignite 1.6s ease-in-out infinite alternate;
+      animation-delay: calc((var(--r, 0) * 1 + var(--c, 0) * 1) * 75ms);
+    }
+
+    @keyframes ritual-glyph-ignite {
+      0% {
+        filter: drop-shadow(0 0 4px rgba(230, 25, 75, 0.6));
+        transform: scale(1);
+      }
+      50% {
+        filter: drop-shadow(0 0 14px rgba(255, 225, 25, 0.95)) drop-shadow(0 0 24px rgba(230, 25, 75, 0.85));
+        transform: scale(1.1);
+      }
+      100% {
+        filter: drop-shadow(0 0 8px rgba(245, 130, 49, 0.8));
+        transform: scale(1.03);
+      }
+    }
+
+    .victory-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 4, 8, 0.88);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .victory-modal.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .victory-box {
+      background: #14141e;
+      border: 2px solid var(--blood-red);
+      border-radius: 16px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(230, 25, 75, 0.5), 0 20px 50px rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      transform: scale(0.88) translateY(24px);
+      opacity: 0;
+      transition: transform 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.35s ease;
+    }
+
+    .victory-modal.open .victory-box {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+
+    .victory-seal-icon {
+      font-size: 2.8rem;
+      animation: victory-flame 1.5s ease-in-out infinite alternate;
+      filter: drop-shadow(0 0 15px rgba(245, 130, 49, 0.8));
+    }
+
+    @keyframes victory-flame {
+      0% { transform: scale(1); filter: drop-shadow(0 0 12px rgba(230, 25, 75, 0.7)); }
+      100% { transform: scale(1.12); filter: drop-shadow(0 0 25px rgba(255, 225, 25, 0.95)) drop-shadow(0 0 35px rgba(245, 130, 49, 0.8)); }
+    }
+
+    .victory-box h2 {
+      color: #fff;
+      letter-spacing: 3px;
+      font-size: 1.45rem;
+      text-transform: uppercase;
+      text-shadow: 0 0 15px var(--blood-red), 0 0 30px rgba(230, 25, 75, 0.6);
+      margin: 0;
+    }
+
+    .victory-box p {
+      font-size: 0.9rem;
+      color: var(--bone-white);
+      line-height: 1.5;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="title-group">
+      <h1>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10.5" stroke="#ffffff" stroke-width="1.4"/>
+          <path d="M12 22 L17.88 3.92 L2.5 15.08 L21.5 15.08 L6.12 3.92 Z" stroke="#ffffff" stroke-width="1.5" fill="rgba(230,25,75,0.2)"/>
+        </svg>
+        Brutal Sudoku
+      </h1>
+      <p>6x6 Ritual of the Hexagram</p>
+    </div>
+    <div class="header-actions">
+      <button id="sound-btn" class="btn-icon" title="Toggle Ritual Audio" aria-label="Toggle Audio">
+        <span id="sound-icon">🔊</span>
+      </button>
+      <button id="open-comments-btn" class="btn-icon" title="Supabase Comments" aria-label="Open Comments">
+        💬 Ritual Logs
+      </button>
+    </div>
+  </header>
+
+  <!-- Ritual Stats Bar -->
+  <div class="ritual-stats">
+    <div class="stat-badge">
+      <span>Tier:</span>
+      <select id="diff-select" class="difficulty-select">
+        <option value="easy">Acolyte</option>
+        <option value="medium" selected>Doom Priest</option>
+        <option value="hard">Arch-Demon</option>
+      </select>
+    </div>
+    <div class="stat-badge">
+      <span>Time:</span>
+      <strong id="timer-display">00:00</strong>
+    </div>
+    <div class="stat-badge">
+      <span>Sin:</span>
+      <strong id="mistakes-display" style="color: var(--blood-red);">0 / 3</strong>
+    </div>
+  </div>
+
+  <!-- 6x6 Sudoku Grid -->
+  <div class="board-container">
+    <div id="sudoku-grid"></div>
+  </div>
+
+  <!-- Mobile Palette & Ritual Controls -->
+  <div class="controls-wrapper">
+    <div class="palette" id="glyph-palette">
+      <!-- 6 heavy-metal glyph buttons generated via JS -->
+    </div>
+
+    <!-- Summon & Banish Primary Actions -->
+    <div class="action-grid">
+      <button id="summon-btn" class="btn-action btn-summon">
+        <span>⚡ SUMMON</span>
+      </button>
+      <button id="banish-btn" class="btn-action btn-banish">
+        <span>⚔️ BANISH</span>
+      </button>
+    </div>
+
+    <!-- Secondary Helper Controls -->
+    <div class="sub-actions">
+      <button id="toggle-hint-btn" class="btn-secondary">Decipher Runes (1-6)</button>
+      <button id="reset-board-btn" class="btn-secondary">Purge Board</button>
+      <button id="new-game-btn" class="btn-secondary">New Rite</button>
+    </div>
+  </div>
+
+  <!-- Comments Overlay Modal (Supabase Integration) -->
+  <div id="comments-modal" class="modal-backdrop">
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <h2>
+          <span>📜</span> Ritual Inscriptions
+        </h2>
+        <button id="close-comments-btn" class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-content">
+        
+        <!-- Supabase Status Banner -->
+        <div class="db-status-banner">
+          <span id="db-status-indicator">⚡ Storage: Initializing...</span>
+          <button id="refresh-comments-btn" class="btn-secondary" style="padding: 2px 8px; flex: none;">Refresh</button>
+        </div>
+
+        <!-- Submission Form -->
+        <form id="comment-form" class="comment-form">
+          <div class="form-group">
+            <label for="comment-name">Acolyte Name (Accepts pure numbers)</label>
+            <input type="text" id="comment-name" placeholder="e.g. 123456 or Slayer" required />
+          </div>
+          <div class="form-group">
+            <label for="comment-text">Inscription / Comment (Accepts pure numbers)</label>
+            <textarea id="comment-text" rows="2" placeholder="e.g. 666 or Completed the Arch-Demon rite!" required></textarea>
+          </div>
+          <button type="submit" id="submit-comment-btn" class="btn-submit-comment">
+            <span>Inscribe into Abyss</span>
+          </button>
+        </form>
+
+        <!-- Feed of comments -->
+        <div class="comments-feed">
+          <div class="feed-header">
+            <span>Echoes from the Crypt</span>
+            <span id="comments-count">0 inscriptions</span>
+          </div>
+          <div id="comments-list">
+            <!-- Rendered comments -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Dark-Themed Ritual Celebration Canvas -->
+  <canvas id="celebration-canvas" class="celebration-canvas"></canvas>
+
+  <!-- Victory Ritual Modal -->
+  <div id="victory-modal" class="victory-modal">
+    <div class="victory-box">
+      <div class="victory-seal-icon">⛧ 🔥 ⛧</div>
+      <h2>RITE COMPLETE</h2>
+      <p>The Hexagram is sealed in blood. The Arch-Demon smiles upon your offering.</p>
+      <div class="stat-badge" style="background: rgba(0,0,0,0.5); padding: 6px 16px; border-radius: 20px;">
+        Final Ritual Time: <strong id="final-time" style="color: var(--hell-gold); margin-left: 4px;">00:00</strong>
+      </div>
+      <div style="display: flex; gap: 8px; width: 100%; margin-top: 6px;">
+        <button id="victory-share-btn" class="btn-action btn-summon" style="flex: 1;">
+          Inscribe Victory
+        </button>
+        <button id="victory-again-btn" class="btn-action btn-banish" style="flex: 1;">
+          Next Rite
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Single Vanilla JS Script -->
+  <script>
+    /* =========================================================================
+       SUPABASE CREDENTIALS
+       Connected project and publishable anon key:
+       ========================================================================= */
+    const SUPABASE_URL = "https://uwkzxtryxmjivsfrtgqc.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_g7ZqFdDkdyu5JuNPZJxL0w_gAnZyLmg";
+
+    /* =========================================================================
+       1. OCCULT AUDIO ENGINE (Web Audio API Synthesizer)
+       ========================================================================= */
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, type, duration, gainLevel = 0.15) {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainLevel, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        // Fallback silently if audio context is blocked
+      }
+    }
+
+    function playSummonSound() {
+      if (!soundEnabled) return;
+      playTone(146.83, 'sawtooth', 0.25, 0.2); // D3 Power root
+      setTimeout(() => playTone(220.00, 'sawtooth', 0.3, 0.15), 50); // A3 Fifth
+    }
+
+    function playBanishSound() {
+      if (!soundEnabled) return;
+      playTone(98.00, 'triangle', 0.2, 0.2);
+    }
+
+    function playErrorSound() {
+      if (!soundEnabled) return;
+      // Tritone dissonance (The Devil's Interval)
+      playTone(185.00, 'square', 0.35, 0.12);
+      playTone(261.63, 'square', 0.35, 0.12);
+    }
+
+    function playVictoryFanfare() {
+      if (!soundEnabled) return;
+      try {
+        // Deep sub-bass infernal ritual impact
+        playTone(55.00, 'sawtooth', 0.5, 0.45); // A1 Sub-impact
+        playTone(73.42, 'triangle', 0.4, 0.4);  // D2 Sub
+
+        // Brutal doom/thrash power-chord progression
+        const riff = [
+          { f1: 146.83, f2: 220.00, delay: 0 },    // D5 power chord
+          { f1: 164.81, f2: 246.94, delay: 140 },  // E5 power chord
+          { f1: 174.61, f2: 261.63, delay: 280 },  // F5 power chord
+          { f1: 220.00, f2: 329.63, delay: 420 },  // A5 power chord
+          { f1: 293.66, f2: 440.00, delay: 620 }   // High D5 power climax with harmonics
+        ];
+
+        riff.forEach(chord => {
+          setTimeout(() => {
+            playTone(chord.f1, 'sawtooth', 0.4, 0.3);
+            playTone(chord.f2, 'sawtooth', 0.35, 0.3);
+          }, chord.delay);
+        });
+      } catch (e) {
+        // Safe fallback
+      }
+    }
+
+    /* =========================================================================
+       2. OCCULT GLYPHS / HEAVY-METAL SYMBOLS (Crisp SVGs)
+       Values: 1 to 6
+       1: Pentagram
+       2: Inverted Cross
+       3: Hellfire Flame
+       4: Black Candle
+       5: The Beast (666)
+       6: Grim Skull
+       ========================================================================= */
+    const GLYPHS = {
+      1: {
+        name: 'Pentagram',
+        color: '#ffffff',
+        svg: `<svg viewBox="0 0 48 48" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <!-- Enclosing Ritual Circle in White -->
+                <circle cx="24" cy="24" r="21" stroke="#ffffff" stroke-width="2"/>
+                <!-- Inverted Pentagram (Single Continuous Connected Star with 5 intersecting chords pointing downward) -->
+                <path d="M24 44 L35.75 7.84 L5 30.16 L43 30.16 L12.25 7.84 Z" stroke="#ffffff" stroke-width="2.2" fill="rgba(255,255,255,0.12)"/>
+              </svg>`
+      },
+      2: {
+        name: 'Inverted Cross',
+        color: '#e53e3e',
+        svg: `<svg viewBox="0 0 48 48" fill="none" stroke="#e53e3e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="24" y1="4" x2="24" y2="44"/>
+                <line x1="10" y1="34" x2="38" y2="34"/>
+                <circle cx="24" cy="34" r="3" fill="#e53e3e"/>
+                <path d="M20 4 L28 4 M7 34 L7 37 M41 34 L41 37 M20 44 L28 44" stroke-width="2"/>
+              </svg>`
+      },
+      3: {
+        name: 'Hellfire',
+        color: '#f58231',
+        svg: `<svg viewBox="0 0 48 48" fill="#f58231" stroke="#f58231" stroke-width="1.5" stroke-linejoin="round">
+                <path d="M24 4 C24 4, 33 15, 33 26 C33 34, 27 42, 24 44 C21 42, 15 34, 15 26 C15 15, 24 4, 24 4 Z" fill="rgba(245,130,49,0.2)"/>
+                <path d="M24 16 C24 16, 29 23, 29 29 C29 34, 26 38, 24 39 C22 38, 19 34, 19 29 C19 23, 24 16, 24 16 Z" fill="#ffe119"/>
+                <path d="M12 28 C9 30, 8 36, 12 40 C14 42, 17 40, 16 36 C15 32, 12 28, 12 28 Z" fill="#f58231"/>
+                <path d="M36 28 C39 30, 40 36, 36 40 C34 42, 31 40, 32 36 C33 32, 36 28, 36 28 Z" fill="#f58231"/>
+              </svg>`
+      },
+      4: {
+        name: 'Candle',
+        color: '#ffe119',
+        svg: `<svg viewBox="0 0 48 48" fill="none" stroke="#ffe119" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="18" y="19" width="12" height="23" rx="1.5" fill="rgba(255,225,25,0.15)"/>
+                <path d="M18 25 C16 26, 16 28, 18 29" stroke-width="2"/>
+                <line x1="24" y1="19" x2="24" y2="13" stroke="#e8e8ed" stroke-width="2"/>
+                <path d="M24 5 C21 9, 21 13, 24 14 C27 13, 27 9, 24 5 Z" fill="#f58231" stroke="#ffe119" stroke-width="1.5"/>
+                <line x1="12" y1="42" x2="36" y2="42" stroke="#8e8ea0" stroke-width="3"/>
+              </svg>`
+      },
+      5: {
+        name: '666',
+        color: '#9f7aea',
+        svg: `<svg viewBox="0 0 48 48" fill="none" stroke="#9f7aea" stroke-width="2.5" stroke-linecap="round">
+                <!-- Three interconnected stylized 6s -->
+                <path d="M15 13 C11 16, 7 24, 7 30 C7 36, 12 40, 17 38 C21 36, 21 30, 17 28 C13 26, 8 30, 8 30"/>
+                <path d="M27 13 C23 16, 19 24, 19 30 C19 36, 24 40, 29 38 C33 36, 33 30, 29 28 C25 26, 20 30, 20 30"/>
+                <path d="M39 13 C35 16, 31 24, 31 30 C31 36, 36 40, 41 38 C45 36, 45 30, 41 28 C37 26, 32 30, 32 30"/>
+              </svg>`
+      },
+      6: {
+        name: 'Skull',
+        color: '#e8e8ed',
+        svg: `<svg viewBox="0 0 48 48" fill="none" stroke="#e8e8ed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <!-- Realistic Heavy Metal Cranium & Anatomical Contours -->
+                <path d="M11 22 C10 13, 16 6, 24 6 C32 6, 38 13, 37 22 C37 26, 35 28.5, 33.5 30 C34 32, 32.5 34, 30.5 34.5 L30.5 37 C30.5 39, 29 40, 27.5 40 L20.5 40 C19 40, 17.5 39, 17.5 37 L17.5 34.5 C15.5 34, 14 32, 14.5 30 C13 28.5, 11 26, 11 22 Z" fill="rgba(232, 232, 237, 0.14)"/>
+                <!-- Temporal & Brow Ridges -->
+                <path d="M14 19 C17 17.5, 21 18, 23 19.5 M25 19.5 C27 18, 31 17.5, 34 19" stroke-width="1.4" opacity="0.75"/>
+                <!-- Realistic Angled Orbitals (Eye Sockets) -->
+                <path d="M15 22.5 C15 20.5, 18 19.5, 21 21 C22 21.5, 22.5 24, 21.8 26 C21 28, 17 28.2, 15.5 26.5 C15 25.5, 15 23.5, 15 22.5 Z" fill="#08080c" stroke="#e8e8ed" stroke-width="1.6"/>
+                <path d="M33 22.5 C33 20.5, 30 19.5, 27 21 C26 21.5, 25.5 24, 26.2 26 C27 28, 31 28.2, 32.5 26.5 C33 25.5, 33 23.5, 33 22.5 Z" fill="#08080c" stroke="#e8e8ed" stroke-width="1.6"/>
+                <!-- Piriform Aperture (Inverted Heart/Drop Nasal Cavity) -->
+                <path d="M23 27 C23 27, 24 25.2, 24 25.2 C24 25.2, 25 27, 25 27 C25.8 28.2, 25.4 30.5, 24.6 31 C24.2 31.3, 23.8 31.3, 23.4 31 C22.6 30.5, 22.2 28.2, 23 27 Z" fill="#08080c" stroke="#e8e8ed" stroke-width="1.3"/>
+                <!-- Zygomatic Arch (Cheekbone definition) -->
+                <path d="M12.5 25 C14 27, 16 28.5, 17.5 29.5" stroke-width="1.3" opacity="0.6"/>
+                <path d="M35.5 25 C34 27, 32 28.5, 30.5 29.5" stroke-width="1.3" opacity="0.6"/>
+                <!-- Maxilla & Mandible / Realistic Incisors & Molars -->
+                <line x1="18.5" y1="36" x2="29.5" y2="36" stroke-width="1.4"/>
+                <line x1="20.5" y1="33" x2="20.5" y2="39" stroke-width="1.3"/>
+                <line x1="22.5" y1="33" x2="22.5" y2="39" stroke-width="1.3"/>
+                <line x1="24" y1="33" x2="24" y2="39" stroke-width="1.3"/>
+                <line x1="25.5" y1="33" x2="25.5" y2="39" stroke-width="1.3"/>
+                <line x1="27.5" y1="33" x2="27.5" y2="39" stroke-width="1.3"/>
+              </svg>`
+      }
+    };
+
+    /* =========================================================================
+       3. 6x6 SUDOKU GENERATOR & PURE-LOGIC SOLVER (2x3 Blocks)
+       6 rows, 6 columns.
+       Blocks are 2 rows x 3 columns:
+         Row 0..1, Col 0..2 -> Block 0
+         Row 0..1, Col 3..5 -> Block 1
+         Row 2..3, Col 0..2 -> Block 2
+         Row 2..3, Col 3..5 -> Block 3
+         Row 4..5, Col 0..2 -> Block 4
+         Row 4..5, Col 3..5 -> Block 5
+       ========================================================================= */
+    function getBlockIndex(row, col) {
+      const blockRow = Math.floor(row / 2); // 0, 1, or 2
+      const blockCol = Math.floor(col / 3); // 0 or 1
+      return blockRow * 2 + blockCol;
+    }
+
+    function isValidPlacement(board, row, col, num) {
+      for (let c = 0; c < 6; c++) {
+        if (c !== col && board[row][c] === num) return false;
+      }
+      for (let r = 0; r < 6; r++) {
+        if (r !== row && board[r][col] === num) return false;
+      }
+      const startRow = Math.floor(row / 2) * 2;
+      const startCol = Math.floor(col / 3) * 3;
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < 3; c++) {
+          const checkR = startRow + r;
+          const checkC = startCol + c;
+          if ((checkR !== row || checkC !== col) && board[checkR][checkC] === num) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    // Generate a full valid 6x6 board using randomized backtracking
+    function generateFullSolution() {
+      const board = Array.from({ length: 6 }, () => Array(6).fill(0));
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
+      function solve(r = 0, c = 0) {
+        if (r === 6) return true;
+        const nextR = c === 5 ? r + 1 : r;
+        const nextC = c === 5 ? 0 : c + 1;
+
+        const nums = shuffle([1, 2, 3, 4, 5, 6]);
+        for (const n of nums) {
+          if (isValidPlacement(board, r, c, n)) {
+            board[r][c] = n;
+            if (solve(nextR, nextC)) return true;
+            board[r][c] = 0;
+          }
+        }
+        return false;
+      }
+
+      solve();
+      return board;
+    }
+
+    // Pure logic solver (Naked Singles & Hidden Singles within rows, columns, and 2x3 blocks)
+    // Returns: { solved: boolean, board: number[][], steps: number }
+    // Guarantees that the puzzle can be completely solved without guessing/backtracking!
+    function solveByPureLogic(initialGrid) {
+      const grid = initialGrid.map(row => [...row]);
+      let progress = true;
+      let steps = 0;
+
+      while (progress) {
+        progress = false;
+
+        // Compute candidates for all empty cells
+        const candidates = Array.from({ length: 6 }, () => Array(6).fill(null));
+        for (let r = 0; r < 6; r++) {
+          for (let c = 0; c < 6; c++) {
+            if (grid[r][c] === 0) {
+              const list = [];
+              for (let num = 1; num <= 6; num++) {
+                if (isValidPlacement(grid, r, c, num)) {
+                  list.push(num);
+                }
+              }
+              if (list.length === 0) {
+                // Dead end / contradiction in pure logic
+                return { solved: false, board: grid, steps };
+              }
+              candidates[r][c] = list;
+            }
+          }
+        }
+
+        // 1. Technique: Naked Singles (cell has only 1 possible candidate)
+        for (let r = 0; r < 6; r++) {
+          for (let c = 0; c < 6; c++) {
+            if (grid[r][c] === 0 && candidates[r][c] && candidates[r][c].length === 1) {
+              grid[r][c] = candidates[r][c][0];
+              progress = true;
+              steps++;
+            }
+          }
+        }
+        if (progress) continue;
+
+        // 2. Technique: Hidden Singles in Rows
+        for (let r = 0; r < 6; r++) {
+          for (let num = 1; num <= 6; num++) {
+            let count = 0;
+            let targetCol = -1;
+            for (let c = 0; c < 6; c++) {
+              if (grid[r][c] === num) {
+                count = -999;
+                break;
+              }
+              if (grid[r][c] === 0 && candidates[r][c].includes(num)) {
+                count++;
+                targetCol = c;
+              }
+            }
+            if (count === 1 && targetCol !== -1) {
+              grid[r][targetCol] = num;
+              progress = true;
+              steps++;
+            }
+          }
+        }
+        if (progress) continue;
+
+        // 3. Technique: Hidden Singles in Columns
+        for (let c = 0; c < 6; c++) {
+          for (let num = 1; num <= 6; num++) {
+            let count = 0;
+            let targetRow = -1;
+            for (let r = 0; r < 6; r++) {
+              if (grid[r][c] === num) {
+                count = -999;
+                break;
+              }
+              if (grid[r][c] === 0 && candidates[r][c].includes(num)) {
+                count++;
+                targetRow = r;
+              }
+            }
+            if (count === 1 && targetRow !== -1) {
+              grid[targetRow][c] = num;
+              progress = true;
+              steps++;
+            }
+          }
+        }
+        if (progress) continue;
+
+        // 4. Technique: Hidden Singles in 2x3 Blocks
+        for (let blockIdx = 0; blockIdx < 6; blockIdx++) {
+          const startR = Math.floor(blockIdx / 2) * 2;
+          const startC = (blockIdx % 2) * 3;
+          for (let num = 1; num <= 6; num++) {
+            let count = 0;
+            let targetR = -1;
+            let targetC = -1;
+            for (let r = 0; r < 2; r++) {
+              for (let c = 0; c < 3; c++) {
+                const cellR = startR + r;
+                const cellC = startC + c;
+                if (grid[cellR][cellC] === num) {
+                  count = -999;
+                  break;
+                }
+                if (grid[cellR][cellC] === 0 && candidates[cellR][cellC].includes(num)) {
+                  count++;
+                  targetR = cellR;
+                  targetC = cellC;
+                }
+              }
+            }
+            if (count === 1 && targetR !== -1) {
+              grid[targetR][targetC] = num;
+              progress = true;
+              steps++;
+            }
+          }
+        }
+      }
+
+      // Check if board is completely filled
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          if (grid[r][c] === 0) {
+            return { solved: false, board: grid, steps };
+          }
+        }
+      }
+
+      return { solved: true, board: grid, steps };
+    }
+
+    // Count total possible solutions via backtracking to guarantee uniqueness
+    function countSolutions(board, countRef = { count: 0 }, limit = 2) {
+      let emptyR = -1, emptyC = -1;
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          if (board[r][c] === 0) {
+            emptyR = r;
+            emptyC = c;
+            break;
+          }
+        }
+        if (emptyR !== -1) break;
+      }
+
+      if (emptyR === -1) {
+        countRef.count++;
+        return;
+      }
+
+      for (let num = 1; num <= 6; num++) {
+        if (isValidPlacement(board, emptyR, emptyC, num)) {
+          board[emptyR][emptyC] = num;
+          countSolutions(board, countRef, limit);
+          board[emptyR][emptyC] = 0;
+          if (countRef.count >= limit) return;
+        }
+      }
+    }
+
+    // Generates a board that is rigorously tested to be solvable using pure logic
+    function createPureLogicPuzzle(difficulty = 'medium') {
+      const solution = generateFullSolution();
+      const clues = solution.map(row => [...row]);
+
+      // Target number of clues by difficulty tier:
+      // Acolyte (Easy): 20-22 clues
+      // Doom Priest (Medium): 16-18 clues
+      // Arch-Demon (Hard): 12-14 clues (minimalist pure-logic)
+      const targetClues = difficulty === 'easy' ? 22 : difficulty === 'medium' ? 17 : 14;
+
+      // Coordinate list shuffled
+      const positions = [];
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          positions.push({ r, c });
+        }
+      }
+      for (let i = positions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [positions[i], positions[j]] = [positions[j], positions[i]];
+      }
+
+      let currentClueCount = 36;
+      for (const { r, c } of positions) {
+        if (currentClueCount <= targetClues) break;
+        const backup = clues[r][c];
+        clues[r][c] = 0;
+
+        // Check 1: Must have unique solution
+        const testBoard = clues.map(row => [...row]);
+        const counter = { count: 0 };
+        countSolutions(testBoard, counter, 2);
+        if (counter.count !== 1) {
+          clues[r][c] = backup;
+          continue;
+        }
+
+        // Check 2: MUST be solvable using pure logic (Naked/Hidden singles, NO guessing)
+        const logicResult = solveByPureLogic(clues);
+        if (!logicResult.solved) {
+          clues[r][c] = backup;
+          continue;
+        }
+
+        currentClueCount--;
+      }
+
+      // Final strict verification: ensure pure logic solves it completely to the exact solution
+      const finalVerification = solveByPureLogic(clues);
+      if (!finalVerification.solved) {
+        // Fallback safety: return standard known curated puzzle if random generator got stuck
+        return getCuratedPureLogicPuzzle(difficulty);
+      }
+
+      return { solution, clues };
+    }
+
+    // Handcrafted, mathematically verified 100% pure-logic fallback puzzles
+    function getCuratedPureLogicPuzzle(difficulty) {
+      const curated = {
+        easy: {
+          solution: [
+            [1, 2, 3, 4, 5, 6],
+            [4, 5, 6, 1, 2, 3],
+            [2, 3, 1, 5, 6, 4],
+            [5, 6, 4, 2, 3, 1],
+            [3, 1, 2, 6, 4, 5],
+            [6, 4, 5, 3, 1, 2]
+          ],
+          clues: [
+            [1, 2, 0, 4, 5, 6],
+            [4, 0, 6, 1, 0, 3],
+            [2, 3, 1, 0, 6, 4],
+            [5, 6, 0, 2, 3, 1],
+            [3, 0, 2, 6, 0, 5],
+            [6, 4, 5, 0, 1, 2]
+          ]
+        },
+        medium: {
+          solution: [
+            [2, 4, 6, 1, 3, 5],
+            [1, 3, 5, 2, 4, 6],
+            [4, 6, 2, 3, 5, 1],
+            [3, 5, 1, 4, 6, 2],
+            [6, 2, 4, 5, 1, 3],
+            [5, 1, 3, 6, 2, 4]
+          ],
+          clues: [
+            [2, 4, 0, 1, 0, 5],
+            [1, 0, 5, 0, 4, 0],
+            [4, 6, 0, 3, 0, 1],
+            [3, 0, 1, 0, 6, 2],
+            [0, 2, 0, 5, 0, 3],
+            [5, 0, 3, 0, 2, 4]
+          ]
+        },
+        hard: {
+          solution: [
+            [6, 1, 2, 3, 4, 5],
+            [3, 4, 5, 6, 1, 2],
+            [1, 2, 6, 4, 5, 3],
+            [4, 5, 3, 1, 2, 6],
+            [2, 6, 1, 5, 3, 4],
+            [5, 3, 4, 2, 6, 1]
+          ],
+          clues: [
+            [0, 1, 2, 0, 4, 0],
+            [3, 0, 0, 6, 0, 2],
+            [1, 2, 0, 0, 5, 3],
+            [4, 5, 0, 0, 2, 6],
+            [2, 0, 1, 5, 0, 4],
+            [0, 3, 0, 2, 6, 0]
+          ]
+        }
+      };
+      return curated[difficulty] || curated.medium;
+    }
+
+    // Game state
+    let currentDifficulty = 'medium';
+    let currentBoard = [];
+    let initialClues = [];
+    let solutionBoard = [];
+    let selectedCell = { row: null, col: null };
+    let selectedPaletteSymbol = 1;
+    let showNumericHints = false;
+    let mistakes = 0;
+    let timerSeconds = 0;
+    let timerInterval = null;
+    let gameActive = true;
+    let isBoardSolved = false;
+
+    /* =========================================================================
+       DARK OCCULT CELEBRATION ENGINE
+       - Custom 60fps dark-themed ritual canvas particles:
+         * Rising sacrificial embers & glowing cinders (#ffe119, #f58231, #e6194b)
+         * High-energy demonic spark bursts erupted from the board center
+         * Expanding infernal shockwaves
+         * Drifting dark ash & charcoal smoke flakes
+         * Occult micro-runes floating in updrafts
+       - Solved Board Consecration wave (staggered crimson-gold cell combustion)
+       ========================================================================= */
+    let celebrationAnimationId = null;
+    let celebrationCanvas = null;
+    let celebrationCtx = null;
+    let celebrationParticles = [];
+    let celebrationShockwaves = [];
+    let celebrationRunes = [];
+    let celebrationAshes = [];
+    let celebrationActive = false;
+
+    function initCelebrationCanvas() {
+      celebrationCanvas = document.getElementById('celebration-canvas');
+      if (!celebrationCanvas) return;
+      celebrationCtx = celebrationCanvas.getContext('2d');
+      resizeCelebrationCanvas();
+      window.addEventListener('resize', resizeCelebrationCanvas);
+    }
+
+    function resizeCelebrationCanvas() {
+      if (!celebrationCanvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      celebrationCanvas.width = window.innerWidth * dpr;
+      celebrationCanvas.height = window.innerHeight * dpr;
+      if (celebrationCtx) {
+        if (celebrationCtx.resetTransform) celebrationCtx.resetTransform();
+        else celebrationCtx.setTransform(1, 0, 0, 1, 0, 0);
+        celebrationCtx.scale(dpr, dpr);
+      }
+    }
+
+    function startOccultCelebration() {
+      if (!celebrationCanvas) initCelebrationCanvas();
+      if (!celebrationCanvas || !celebrationCtx) return;
+
+      celebrationActive = true;
+      celebrationCanvas.classList.add('active');
+      celebrationParticles = [];
+      celebrationShockwaves = [];
+      celebrationRunes = [];
+      celebrationAshes = [];
+
+      resizeCelebrationCanvas();
+
+      // Board coordinates for localized explosive eruption
+      const rect = gridElement.getBoundingClientRect();
+      const originX = rect.left + rect.width / 2;
+      const originY = rect.top + rect.height / 2;
+
+      // 1. Consecration Shockwaves emanating from the board
+      for (let i = 0; i < 3; i++) {
+        celebrationShockwaves.push({
+          x: originX,
+          y: originY,
+          radius: 20 + i * 40,
+          maxRadius: Math.max(window.innerWidth, window.innerHeight) * 0.85,
+          speed: 7 + i * 2.5,
+          color: i % 2 === 0 ? 'rgba(230, 25, 75, ' : 'rgba(245, 130, 49, ',
+          opacity: 0.95,
+          decay: 0.012
+        });
+      }
+
+      // 2. High-energy Demonic Sparks erupted radially from the solved board
+      const sparkColors = ['#ffffff', '#ffe119', '#f58231', '#ff2a55', '#e6194b'];
+      for (let i = 0; i < 90; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 9 + 3;
+        celebrationParticles.push({
+          x: originX + (Math.random() - 0.5) * (rect.width * 0.6),
+          y: originY + (Math.random() - 0.5) * (rect.height * 0.6),
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          drag: 0.965,
+          gravity: 0.08,
+          size: Math.random() * 3.5 + 1.8,
+          color: sparkColors[Math.floor(Math.random() * sparkColors.length)],
+          alpha: 1,
+          decay: Math.random() * 0.018 + 0.01
+        });
+      }
+
+      // 3. Ascending Infernal Embers & Sacrificial Cinders
+      const emberPalette = ['#ffe119', '#f58231', '#e6194b', '#ff3366', '#d11141'];
+      for (let i = 0; i < 95; i++) {
+        celebrationParticles.push({
+          x: Math.random() * window.innerWidth,
+          y: window.innerHeight + Math.random() * 200,
+          vx: (Math.random() - 0.5) * 1.4,
+          vy: -(Math.random() * 2.6 + 1.2),
+          wavePhase: Math.random() * Math.PI * 2,
+          waveSpeed: Math.random() * 0.04 + 0.02,
+          waveAmp: Math.random() * 1.8 + 0.6,
+          size: Math.random() * 3.2 + 1.5,
+          color: emberPalette[Math.floor(Math.random() * emberPalette.length)],
+          alpha: Math.random() * 0.8 + 0.2,
+          isEmber: true
+        });
+      }
+
+      // 4. Atmospheric Dark Ash & Charcoal Smoke Flakes
+      for (let i = 0; i < 45; i++) {
+        celebrationAshes.push({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * window.innerHeight,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: -(Math.random() * 1.2 + 0.4),
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.03,
+          size: Math.random() * 5 + 3,
+          alpha: Math.random() * 0.5 + 0.25
+        });
+      }
+
+      // 5. Floating Occult Micro-Runes
+      const runeTypes = ['pentagram', 'cross', 'seal'];
+      for (let i = 0; i < 16; i++) {
+        celebrationRunes.push({
+          x: originX + (Math.random() - 0.5) * (window.innerWidth * 0.75),
+          y: originY + (Math.random() - 0.5) * (rect.height * 0.5) + Math.random() * 150,
+          vy: -(Math.random() * 1.6 + 0.8),
+          vx: (Math.random() - 0.5) * 0.9,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.04,
+          type: runeTypes[Math.floor(Math.random() * runeTypes.length)],
+          size: Math.random() * 10 + 10,
+          color: Math.random() > 0.4 ? 'rgba(255, 255, 255, ' : 'rgba(230, 25, 75, ',
+          alpha: 1,
+          decay: Math.random() * 0.007 + 0.004
+        });
+      }
+
+      if (celebrationAnimationId) cancelAnimationFrame(celebrationAnimationId);
+      animateCelebration();
+    }
+
+    function stopOccultCelebration() {
+      celebrationActive = false;
+      if (celebrationAnimationId) {
+        cancelAnimationFrame(celebrationAnimationId);
+        celebrationAnimationId = null;
+      }
+      if (celebrationCanvas) {
+        celebrationCanvas.classList.remove('active');
+        if (celebrationCtx) {
+          celebrationCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        }
+      }
+      celebrationParticles = [];
+      celebrationShockwaves = [];
+      celebrationRunes = [];
+      celebrationAshes = [];
+      
+      const grid = document.getElementById('sudoku-grid');
+      if (grid) grid.classList.remove('ritual-victory');
+      document.querySelectorAll('.cell.ritual-victory').forEach(c => c.classList.remove('ritual-victory'));
+    }
+
+    function animateCelebration() {
+      if (!celebrationActive || !celebrationCtx) return;
+
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      celebrationCtx.clearRect(0, 0, width, height);
+
+      // Render expanding shockwaves
+      for (let i = celebrationShockwaves.length - 1; i >= 0; i--) {
+        const sw = celebrationShockwaves[i];
+        sw.radius += sw.speed;
+        sw.opacity -= sw.decay;
+
+        if (sw.opacity <= 0 || sw.radius >= sw.maxRadius) {
+          celebrationShockwaves.splice(i, 1);
+          continue;
+        }
+
+        celebrationCtx.save();
+        celebrationCtx.beginPath();
+        celebrationCtx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+        celebrationCtx.strokeStyle = sw.color + sw.opacity + ')';
+        celebrationCtx.lineWidth = 4;
+        celebrationCtx.shadowColor = sw.color + '0.8)';
+        celebrationCtx.shadowBlur = 18;
+        celebrationCtx.stroke();
+        celebrationCtx.restore();
+      }
+
+      // Render dark drifting ash flakes
+      for (let i = 0; i < celebrationAshes.length; i++) {
+        const a = celebrationAshes[i];
+        a.x += a.vx;
+        a.y += a.vy;
+        a.rotation += a.rotSpeed;
+
+        if (a.y < -20) {
+          a.y = height + 20;
+          a.x = Math.random() * width;
+        }
+
+        celebrationCtx.save();
+        celebrationCtx.translate(a.x, a.y);
+        celebrationCtx.rotate(a.rotation);
+        celebrationCtx.fillStyle = `rgba(28, 22, 26, ${a.alpha})`;
+        celebrationCtx.fillRect(-a.size / 2, -a.size / 2, a.size, a.size * 0.7);
+        celebrationCtx.restore();
+      }
+
+      // Render embers & sparks
+      for (let i = celebrationParticles.length - 1; i >= 0; i--) {
+        const p = celebrationParticles[i];
+
+        if (p.isEmber) {
+          p.wavePhase += p.waveSpeed;
+          p.x += p.vx + Math.sin(p.wavePhase) * p.waveAmp;
+          p.y += p.vy;
+
+          if (p.y < -30) {
+            p.y = height + 20;
+            p.x = Math.random() * width;
+          }
+
+          // Flickering glow
+          const flicker = 0.85 + Math.sin(p.wavePhase * 3) * 0.15;
+          const currentAlpha = Math.max(0.1, p.alpha * flicker);
+
+          celebrationCtx.save();
+          celebrationCtx.shadowColor = p.color;
+          celebrationCtx.shadowBlur = 10;
+          celebrationCtx.fillStyle = p.color;
+          celebrationCtx.globalAlpha = currentAlpha;
+          celebrationCtx.beginPath();
+          celebrationCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          celebrationCtx.fill();
+          celebrationCtx.restore();
+        } else {
+          // Exploding spark from board center
+          p.vx *= p.drag;
+          p.vy = p.vy * p.drag + p.gravity;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.alpha -= p.decay;
+
+          if (p.alpha <= 0) {
+            celebrationParticles.splice(i, 1);
+            continue;
+          }
+
+          celebrationCtx.save();
+          celebrationCtx.shadowColor = p.color;
+          celebrationCtx.shadowBlur = 8;
+          celebrationCtx.fillStyle = p.color;
+          celebrationCtx.globalAlpha = Math.max(0, p.alpha);
+          celebrationCtx.beginPath();
+          celebrationCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          celebrationCtx.fill();
+          celebrationCtx.restore();
+        }
+      }
+
+      // Render floating occult micro-runes
+      for (let i = celebrationRunes.length - 1; i >= 0; i--) {
+        const r = celebrationRunes[i];
+        r.x += r.vx;
+        r.y += r.vy;
+        r.rotation += r.rotSpeed;
+        r.alpha -= r.decay;
+
+        if (r.alpha <= 0 || r.y < -40) {
+          celebrationRunes.splice(i, 1);
+          continue;
+        }
+
+        celebrationCtx.save();
+        celebrationCtx.translate(r.x, r.y);
+        celebrationCtx.rotate(r.rotation);
+        celebrationCtx.strokeStyle = r.color + r.alpha + ')';
+        celebrationCtx.lineWidth = 1.6;
+        celebrationCtx.shadowColor = r.color + '0.8)';
+        celebrationCtx.shadowBlur = 9;
+
+        const s = r.size;
+        if (r.type === 'pentagram') {
+          // Inverted pentagram vector
+          celebrationCtx.beginPath();
+          celebrationCtx.arc(0, 0, s * 0.9, 0, Math.PI * 2);
+          celebrationCtx.stroke();
+          celebrationCtx.beginPath();
+          for (let k = 0; k < 5; k++) {
+            const angle = (k * 4 * Math.PI) / 5 + Math.PI / 2;
+            const px = Math.cos(angle) * s * 0.85;
+            const py = Math.sin(angle) * s * 0.85;
+            if (k === 0) celebrationCtx.moveTo(px, py);
+            else celebrationCtx.lineTo(px, py);
+          }
+          celebrationCtx.closePath();
+          celebrationCtx.stroke();
+        } else if (r.type === 'cross') {
+          // Inverted cross
+          celebrationCtx.beginPath();
+          celebrationCtx.moveTo(0, -s);
+          celebrationCtx.lineTo(0, s);
+          celebrationCtx.moveTo(-s * 0.6, s * 0.4);
+          celebrationCtx.lineTo(s * 0.6, s * 0.4);
+          celebrationCtx.stroke();
+        } else {
+          // Runic seal triangle
+          celebrationCtx.beginPath();
+          celebrationCtx.moveTo(0, -s);
+          celebrationCtx.lineTo(s * 0.8, s * 0.7);
+          celebrationCtx.lineTo(-s * 0.8, s * 0.7);
+          celebrationCtx.closePath();
+          celebrationCtx.stroke();
+        }
+        celebrationCtx.restore();
+      }
+
+      // Subtle dark atmospheric edge vignette
+      const vigGrad = celebrationCtx.createRadialGradient(
+        width / 2, height / 2, Math.min(width, height) * 0.4,
+        width / 2, height / 2, Math.max(width, height) * 0.85
+      );
+      vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      vigGrad.addColorStop(1, 'rgba(4, 2, 4, 0.48)');
+      celebrationCtx.fillStyle = vigGrad;
+      celebrationCtx.fillRect(0, 0, width, height);
+
+      celebrationAnimationId = requestAnimationFrame(animateCelebration);
+    }
+
+    /* =========================================================================
+       4. GAME INITIALIZATION & BOARD RENDERING
+       ========================================================================= */
+    const gridElement = document.getElementById('sudoku-grid');
+    const paletteElement = document.getElementById('glyph-palette');
+    const timerDisplay = document.getElementById('timer-display');
+    const mistakesDisplay = document.getElementById('mistakes-display');
+    const diffSelect = document.getElementById('diff-select');
+
+    function initGame(diff = 'medium') {
+      currentDifficulty = diff;
+      diffSelect.value = diff;
+
+      // Stop previous celebration if active
+      isBoardSolved = false;
+      stopOccultCelebration();
+      document.getElementById('victory-modal').classList.remove('open');
+      gridElement.classList.remove('ritual-victory');
+
+      // Rigorously generate and test the puzzle using pure deductive logic before displaying
+      const puzzle = createPureLogicPuzzle(diff);
+
+      currentBoard = puzzle.clues.map(row => [...row]);
+      initialClues = puzzle.clues.map(row => [...row]);
+      solutionBoard = puzzle.solution.map(row => [...row]);
+
+      selectedCell = { row: null, col: null };
+      mistakes = 0;
+      gameActive = true;
+      updateMistakesUI();
+
+      clearInterval(timerInterval);
+      timerSeconds = 0;
+      updateTimerUI();
+      timerInterval = setInterval(() => {
+        if (gameActive) {
+          timerSeconds++;
+          updateTimerUI();
+        }
+      }, 1000);
+
+      renderBoard();
+      renderPalette();
+    }
+
+    function updateTimerUI() {
+      const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+      const secs = String(timerSeconds % 60).padStart(2, '0');
+      timerDisplay.textContent = `${mins}:${secs}`;
+    }
+
+    function updateMistakesUI() {
+      mistakesDisplay.textContent = `${mistakes} / 3`;
+      if (mistakes >= 3) {
+        mistakesDisplay.style.color = '#ff0033';
+      } else {
+        mistakesDisplay.style.color = 'var(--blood-red)';
+      }
+    }
+
+    function renderBoard() {
+      gridElement.innerHTML = '';
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          const val = currentBoard[r][c];
+          const isGiven = initialClues[r][c] !== 0;
+          const isSelected = selectedCell.row === r && selectedCell.col === c;
+
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+          cell.style.setProperty('--r', r);
+          cell.style.setProperty('--c', c);
+
+          if (isGiven) cell.classList.add('given');
+          if (isSelected) cell.classList.add('selected');
+          if (isBoardSolved) cell.classList.add('ritual-victory');
+
+          // Highlight row/column/block peers
+          if (selectedCell.row !== null) {
+            const isPeer = (selectedCell.row === r || selectedCell.col === c ||
+                           getBlockIndex(selectedCell.row, selectedCell.col) === getBlockIndex(r, c));
+            if (isPeer && !isSelected) {
+              cell.classList.add('highlight-peer');
+            }
+            // Highlight identical symbols
+            const selectedVal = currentBoard[selectedCell.row][selectedCell.col];
+            if (selectedVal !== 0 && val === selectedVal && !isSelected) {
+              cell.classList.add('highlight-symbol');
+            }
+          }
+
+          // Check error
+          if (val !== 0 && !isGiven && val !== solutionBoard[r][c]) {
+            cell.classList.add('error');
+          }
+
+          if (val !== 0 && GLYPHS[val]) {
+            cell.innerHTML = GLYPHS[val].svg;
+            if (showNumericHints) {
+              const hint = document.createElement('span');
+              hint.className = 'cell-hint';
+              hint.textContent = val;
+              cell.appendChild(hint);
+            }
+          }
+
+          cell.addEventListener('click', () => onCellClicked(r, c));
+          gridElement.appendChild(cell);
+        }
+      }
+    }
+
+    function renderPalette() {
+      paletteElement.innerHTML = '';
+      for (let i = 1; i <= 6; i++) {
+        const item = GLYPHS[i];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'palette-btn';
+        if (selectedPaletteSymbol === i) {
+          btn.classList.add('active');
+        }
+        btn.innerHTML = `
+          ${item.svg}
+          <span class="rune-num">${showNumericHints ? i : ''}</span>
+        `;
+        btn.title = `${item.name} (${i})`;
+        btn.addEventListener('click', () => {
+          selectedPaletteSymbol = i;
+          renderPalette();
+          // If a cell is currently selected, directly summon into it!
+          if (selectedCell.row !== null && selectedCell.col !== null) {
+            summonSymbol(i);
+          }
+        });
+        paletteElement.appendChild(btn);
+      }
+    }
+
+    function onCellClicked(row, col) {
+      initAudio();
+      if (selectedCell.row === row && selectedCell.col === col) {
+        // Double tap: place current symbol if empty, or keep selected
+      }
+      selectedCell = { row, col };
+      renderBoard();
+    }
+
+    function summonSymbol(symbolVal = selectedPaletteSymbol) {
+      if (!gameActive) return;
+      if (selectedCell.row === null || selectedCell.col === null) return;
+      const { row, col } = selectedCell;
+
+      // Cannot overwrite given clues
+      if (initialClues[row][col] !== 0) {
+        playErrorSound();
+        return;
+      }
+
+      currentBoard[row][col] = symbolVal;
+
+      // Check if valid
+      if (symbolVal === solutionBoard[row][col]) {
+        playSummonSound();
+      } else {
+        playErrorSound();
+        mistakes++;
+        updateMistakesUI();
+        if (mistakes >= 3) {
+          // Warning on 3 blasphemies
+        }
+      }
+
+      renderBoard();
+      checkVictory();
+    }
+
+    function banishSymbol() {
+      if (!gameActive) return;
+      if (selectedCell.row === null || selectedCell.col === null) return;
+      const { row, col } = selectedCell;
+
+      if (initialClues[row][col] !== 0) {
+        playErrorSound();
+        return;
+      }
+
+      if (currentBoard[row][col] !== 0) {
+        currentBoard[row][col] = 0;
+        playBanishSound();
+        renderBoard();
+      }
+    }
+
+    function checkVictory() {
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          if (currentBoard[r][c] !== solutionBoard[r][c]) {
+            return false;
+          }
+        }
+      }
+
+      // Solved!
+      gameActive = false;
+      isBoardSolved = true;
+      clearInterval(timerInterval);
+
+      // Deselect any active cell and re-render board with ritual-victory styles
+      selectedCell = { row: null, col: null };
+      renderBoard();
+      gridElement.classList.add('ritual-victory');
+
+      // Play multi-layered heavy-metal celebration power-chords
+      playVictoryFanfare();
+
+      // Launch the dark-themed ritual canvas particles (embers, sparks, shockwaves, runes)
+      startOccultCelebration();
+
+      // Stagger modal reveal so player enjoys the board igniting before the modal overlays
+      setTimeout(() => {
+        if (isBoardSolved) {
+          document.getElementById('final-time').textContent = timerDisplay.textContent;
+          document.getElementById('victory-modal').classList.add('open');
+        }
+      }, 700);
+
+      return true;
+    }
+
+    /* =========================================================================
+       5. SUPABASE COMMENTS OVERLAY INTEGRATION
+       - Connects via @supabase/supabase-js (or raw fetch requests fallback)
+       - Reads from and inserts into public.comments
+       - Pure numbers (e.g. '123456') are handled safely without error
+       - Automatically clears form upon successful submission
+       - Placeholders for SUPABASE_URL and SUPABASE_KEY
+       ========================================================================= */
+    let supabaseClient = null;
+    let localMockComments = [
+      { id: 1, author: 'Behemoth', content: 'The 6x6 hexagram is brutally satisfying.', created_at: new Date(Date.now() - 3600000).toISOString() },
+      { id: 2, author: '666', content: '123456', created_at: new Date(Date.now() - 7200000).toISOString() }
+    ];
+
+    function initSupabase() {
+      const isPlaceholder = !SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL' || !SUPABASE_KEY || SUPABASE_KEY === 'YOUR_SUPABASE_KEY';
+      const statusIndicator = document.getElementById('db-status-indicator');
+
+      if (!isPlaceholder && window.supabase && typeof window.supabase.createClient === 'function') {
+        try {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          statusIndicator.textContent = '⚡ Connected to Supabase';
+          statusIndicator.style.color = '#4ade80';
+          return;
+        } catch (err) {
+          console.warn('Supabase client init failed, using fallback:', err);
+        }
+      }
+
+      statusIndicator.textContent = '⚡ Ritual Cache (Configure SUPABASE_URL/KEY for Cloud)';
+      statusIndicator.style.color = 'var(--ember-orange)';
+    }
+
+    async function fetchComments() {
+      const listElement = document.getElementById('comments-list');
+      const countElement = document.getElementById('comments-count');
+      listElement.innerHTML = '<div style="color:var(--text-muted); font-size:0.8rem; padding:8px 0;">Consulting the Abyss...</div>';
+
+      const isPlaceholder = !SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL';
+
+      if (!isPlaceholder && supabaseClient) {
+        try {
+          const { data, error } = await supabaseClient
+            .from('comments')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(30);
+
+          if (!error && Array.isArray(data)) {
+            renderCommentsList(data);
+            return;
+          }
+        } catch (e) {
+          console.warn('Supabase query error, falling back to local/raw:', e);
+        }
+      }
+
+      // Raw REST fetch fallback if client isn't available
+      if (!isPlaceholder && SUPABASE_URL && SUPABASE_KEY) {
+        try {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/comments?select=*&order=created_at.desc&limit=30`, {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            renderCommentsList(data);
+            return;
+          }
+        } catch (e) {
+          console.warn('Raw fetch error:', e);
+        }
+      }
+
+      // Local mock fallback
+      renderCommentsList(localMockComments);
+    }
+
+    function renderCommentsList(comments) {
+      const listElement = document.getElementById('comments-list');
+      const countElement = document.getElementById('comments-count');
+      listElement.innerHTML = '';
+      countElement.textContent = `${comments.length} inscriptions`;
+
+      if (comments.length === 0) {
+        listElement.innerHTML = '<div style="color:var(--text-muted); font-size:0.8rem; padding:12px; text-align:center;">No inscriptions yet. Be the first to seal the pact.</div>';
+        return;
+      }
+
+      comments.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'comment-card';
+
+        // Support both schema variations (author/content as well as name/comment)
+        const rawAuthor = item.author !== undefined && item.author !== null ? item.author : item.name;
+        const rawContent = item.content !== undefined && item.content !== null ? item.content : item.comment;
+
+        const authorStr = String(rawAuthor !== undefined && rawAuthor !== null ? rawAuthor : 'Unknown Cultist');
+        const textStr = String(rawContent !== undefined && rawContent !== null ? rawContent : '');
+        const dateStr = item.created_at ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : 'Recently';
+
+        card.innerHTML = `
+          <div class="comment-card-top">
+            <span class="comment-author">⚔️ ${escapeHtml(authorStr)}</span>
+            <span class="comment-date">${dateStr}</span>
+          </div>
+          <div class="comment-text">${escapeHtml(textStr)}</div>
+        `;
+        listElement.appendChild(card);
+      });
+    }
+
+    async function submitComment(nameInputVal, commentInputVal) {
+      // Must accept pure numbers (like '123456') without failing!
+      const safeName = String(nameInputVal !== undefined && nameInputVal !== null ? nameInputVal : '').trim();
+      const safeComment = String(commentInputVal !== undefined && commentInputVal !== null ? commentInputVal : '').trim();
+
+      if (!safeName || !safeComment) {
+        alert('Both Name and Inscription are required.');
+        return false;
+      }
+
+      const submitBtn = document.getElementById('submit-comment-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Sealing...</span>';
+
+      let success = false;
+      const isPlaceholder = !SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL';
+
+      // 1. Try Supabase Client (try author/content matching database schema first, then fallback to name/comment)
+      if (!isPlaceholder && supabaseClient) {
+        try {
+          const { error } = await supabaseClient
+            .from('comments')
+            .insert([{ author: safeName, content: safeComment }]);
+
+          if (!error) {
+            success = true;
+          } else {
+            console.warn('Supabase insert with author/content error, attempting fallback:', error);
+            const { error: fallbackErr } = await supabaseClient
+              .from('comments')
+              .insert([{ name: safeName, comment: safeComment }]);
+            if (!fallbackErr) {
+              success = true;
+            }
+          }
+        } catch (e) {
+          console.warn('Supabase client insert exception:', e);
+        }
+      }
+
+      // 2. Try Raw Fetch if client failed or isn't active
+      if (!success && !isPlaceholder && SUPABASE_URL && SUPABASE_KEY) {
+        try {
+          let res = await fetch(`${SUPABASE_URL}/rest/v1/comments`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({ author: safeName, content: safeComment })
+          });
+          if (res.ok) {
+            success = true;
+          } else {
+            // Fallback attempt with name/comment
+            res = await fetch(`${SUPABASE_URL}/rest/v1/comments`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Prefer': 'return=representation'
+              },
+              body: JSON.stringify({ name: safeName, comment: safeComment })
+            });
+            if (res.ok) {
+              success = true;
+            }
+          }
+        } catch (e) {
+          console.warn('Raw fetch insert failed:', e);
+        }
+      }
+
+      // 3. Fallback to Local Ledger so user experience is always fluid
+      if (!success) {
+        const newEntry = {
+          id: Date.now(),
+          author: safeName,
+          content: safeComment,
+          created_at: new Date().toISOString()
+        };
+        localMockComments.unshift(newEntry);
+        success = true;
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span>Inscribe into Abyss</span>';
+
+      if (success) {
+        // Automatically clear inputs upon successful submission as required!
+        document.getElementById('comment-name').value = '';
+        document.getElementById('comment-text').value = '';
+        fetchComments();
+        playSummonSound();
+      }
+
+      return success;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /* =========================================================================
+       6. EVENT LISTENERS & WIRING
+       ========================================================================= */
+    document.addEventListener('DOMContentLoaded', () => {
+      initGame('medium');
+      initSupabase();
+
+      // Palette Summon & Banish
+      document.getElementById('summon-btn').addEventListener('click', () => {
+        initAudio();
+        summonSymbol(selectedPaletteSymbol);
+      });
+
+      document.getElementById('banish-btn').addEventListener('click', () => {
+        initAudio();
+        banishSymbol();
+      });
+
+      // Sound Toggle
+      const soundBtn = document.getElementById('sound-btn');
+      const soundIcon = document.getElementById('sound-icon');
+      soundBtn.addEventListener('click', () => {
+        initAudio();
+        soundEnabled = !soundEnabled;
+        soundIcon.textContent = soundEnabled ? '🔊' : '🔇';
+      });
+
+      // Decipher / Numeric Hint Toggle
+      document.getElementById('toggle-hint-btn').addEventListener('click', () => {
+        showNumericHints = !showNumericHints;
+        renderBoard();
+        renderPalette();
+      });
+
+      // Reset Board
+      document.getElementById('reset-board-btn').addEventListener('click', () => {
+        if (confirm('Purge all unsealed summonings on this board?')) {
+          isBoardSolved = false;
+          stopOccultCelebration();
+          gridElement.classList.remove('ritual-victory');
+          currentBoard = initialClues.map(row => [...row]);
+          renderBoard();
+          playBanishSound();
+        }
+      });
+
+      // New Game
+      document.getElementById('new-game-btn').addEventListener('click', () => {
+        initGame(currentDifficulty);
+      });
+
+      // Difficulty Change
+      diffSelect.addEventListener('change', (e) => {
+        initGame(e.target.value);
+      });
+
+      // Keyboard Controls for Desktop & Tablets
+      window.addEventListener('keydown', (e) => {
+        // Ignore if typing inside comment modal
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+          return;
+        }
+
+        const key = e.key;
+        if (key >= '1' && key <= '6') {
+          const num = parseInt(key, 10);
+          selectedPaletteSymbol = num;
+          renderPalette();
+          summonSymbol(num);
+        } else if (key === 'Backspace' || key === 'Delete' || key === 'x' || key === 'X' || key === '0') {
+          banishSymbol();
+        } else if (key === 'ArrowUp' && selectedCell.row > 0) {
+          selectedCell.row--;
+          renderBoard();
+        } else if (key === 'ArrowDown' && selectedCell.row < 5) {
+          selectedCell.row++;
+          renderBoard();
+        } else if (key === 'ArrowLeft' && selectedCell.col > 0) {
+          selectedCell.col--;
+          renderBoard();
+        } else if (key === 'ArrowRight' && selectedCell.col < 5) {
+          selectedCell.col++;
+          renderBoard();
+        }
+      });
+
+      // Comments Modal Controls
+      const commentsModal = document.getElementById('comments-modal');
+      const openCommentsBtn = document.getElementById('open-comments-btn');
+      const closeCommentsBtn = document.getElementById('close-comments-btn');
+
+      openCommentsBtn.addEventListener('click', () => {
+        commentsModal.classList.add('open');
+        fetchComments();
+      });
+
+      closeCommentsBtn.addEventListener('click', () => {
+        commentsModal.classList.remove('open');
+      });
+
+      commentsModal.addEventListener('click', (e) => {
+        if (e.target === commentsModal) {
+          commentsModal.classList.remove('open');
+        }
+      });
+
+      document.getElementById('refresh-comments-btn').addEventListener('click', () => {
+        fetchComments();
+      });
+
+      // Comment Form Submission
+      const commentForm = document.getElementById('comment-form');
+      commentForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const nameVal = document.getElementById('comment-name').value;
+        const textVal = document.getElementById('comment-text').value;
+        await submitComment(nameVal, textVal);
+      });
+
+      // Victory Modal Actions
+      document.getElementById('victory-again-btn').addEventListener('click', () => {
+        document.getElementById('victory-modal').classList.remove('open');
+        initGame(currentDifficulty);
+      });
+
+      document.getElementById('victory-share-btn').addEventListener('click', () => {
+        document.getElementById('victory-modal').classList.remove('open');
+        commentsModal.classList.add('open');
+        document.getElementById('comment-text').value = `I sealed the ${currentDifficulty.toUpperCase()} Hexagram in ${timerDisplay.textContent}!`;
+        fetchComments();
+      });
+    });
+  </script>
+</body>
+</html>

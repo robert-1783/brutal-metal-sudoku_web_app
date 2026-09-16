@@ -1,0 +1,6 @@
+{
+  "name": "Brutal Metal Sudoku",
+  "description": "A 6x6 heavy-metal ritual Sudoku game featuring occult glyphs, summoning mechanics, audio effects, and integrated Supabase comments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
